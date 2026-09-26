@@ -1,0 +1,2332 @@
+local W = ((function()
+		local W = rawget(_G, "UILib");
+		local L = type(W) == "table" and tonumber(rawget(W, "_now"));
+		return type(L) == "number" and (tick() - L) > 3;
+	end))();
+local function L(W)
+	local L, w = pcall(function()
+			return game:GetService(W);
+		end);
+	if L and w then
+		return w;
+	end;
+	local d, c = pcall(function()
+			return game[W];
+		end);
+	return (d and c) or nil;
+end;
+local function w(W)
+	for w = 1, 150, 1 do
+		local d = L(W);
+		if d then
+			return d;
+		end;
+		wait(.1);
+	end;
+	return nil;
+end;
+local d = w("Players");
+local c = w("RunService");
+if not ((d and c)) then
+	notify("Services never resolved - re-run AutoFish once the game has loaded.", "AutoFish", 6);
+	return;
+end;
+if _G.JustAutofish and type(_G.JustAutofish.stop) == "function" then
+	pcall(_G.JustAutofish.stop);
+end;
+_G.JustAutofish = {};
+local function G()
+	return d.LocalPlayer;
+end;
+if type(setrobloxinput) == "function" then
+	setrobloxinput(true);
+end;
+pcall(mouse1release);
+if type(memory_read) ~= "function" then
+	notify("Enable Unsafe LuaU in Matcha - memory reads required.", "AutoFish", 6);
+end;
+local O = {
+		mode = "rod",
+		castPower = 3.0,
+		castTimeoutMs = 5000,
+		castLandTimeoutMs = 5000,
+		castRepressMs = 180,
+		castRepressGapMs = 30,
+		postCastDelayMs = 10,
+		postCatchDelayMs = 10,
+		postLostDelayMs = 10,
+		castOnTimeout = true,
+		shakeIntervalMs = 15,
+		completionThreshold = 99.0,
+		reelStallMs = 4000,
+		reelTimeoutMs = 0,
+		shakeTimeoutMs = 20000,
+		stuckTimeoutMs = 75000,
+		equipKey = "T",
+		equipVerifyMs = 250,
+		equipAttempts = 4,
+		equipSettleMs = 5000,
+		reequipOnDeadCast = true,
+		dualReel = true,
+		swapReelButtons = false,
+		nukeInvert = false,
+		nukeDeadzoneFrac = .08,
+		nukeTapIntervalMs = 55,
+		nukeTapHoldMs = 30,
+		nukePrediction = 10,
+		nukeTimeoutMs = 45000,
+		nukeLockTimeoutMs = 10000,
+		stabGuiName = "stab",
+		stabIntervalMs = 0,
+		stabHoldMs = 0,
+		stabStartRight = false,
+		stabTimeoutMs = 60000,
+		gunGuiName = "harpoonMinigame",
+		gunDelayMs = 0,
+		gunSettleMs = 45,
+		gunHoldMs = 40,
+		gunRearmMs = 150,
+		gunMaxFixes = 3,
+	};
+local y = { "rod", "spear", "gun" };
+local function p(W)
+	W = tostring(W or "");
+	return (W:sub(1, 1)):upper() .. W:sub(2);
+end;
+local e = {
+		playerGui = 5000,
+		reel = 250,
+		shake = 400,
+		power = 250,
+		nuke = 200,
+		nukeDeep = 1000,
+		nukeNestedPer = 2,
+		stab = 200,
+		gun = 60,
+		step = 8,
+		stepAt = 0,
+		steer = 3,
+		steerAt = 0,
+		book = 12,
+		bookAt = 0,
+		cross = 50,
+		crossAt = 0,
+	};
+local u = "https://offsets.imtheo.lol/offsets.hpp";
+local r = {
+		FramePositionX = 1280,
+		FrameSizeX = 1312,
+		ScreenGuiEnabled = 1204,
+		FrameVisible = 1437,
+		FrameRotation = 376,
+		AbsolutePositionX = 252,
+		AbsolutePositionY = 256,
+		AbsoluteSizeX = 260,
+		AbsoluteSizeY = 264,
+	};
+local function K(W, L, w)
+	local d = W:match("namespace%s+" .. (L .. "%s*{(.-)\n%s*}"));
+	if not d then
+		return nil;
+	end;
+	local c = d:match(w .. "%s*=%s*(0x%x+)") or d:match(w .. "%s*=%s*(%d+)");
+	return c and tonumber(c) or nil;
+end;
+local function U()
+	if type(game.HttpGet) ~= "function" then
+		return;
+	end;
+	local W, L = pcall(function()
+			return game:HttpGet(u);
+		end);
+	if not W or type(L) ~= "string" or #L == 0 then
+		return;
+	end;
+	local w = {
+			FramePositionX = K(L, "GuiObject", "Position"),
+			FrameSizeX = K(L, "GuiObject", "Size"),
+			ScreenGuiEnabled = K(L, "GuiObject", "ScreenGui_Enabled"),
+			FrameVisible = K(L, "GuiObject", "Visible"),
+			FrameRotation = K(L, "GuiObject", "Rotation"),
+		};
+	local d = K(L, "GuiBase2D", "AbsolutePosition");
+	if d then
+		w.AbsolutePositionX, w.AbsolutePositionY = d, d + 4;
+	end;
+	local c = K(L, "GuiBase2D", "AbsoluteSize");
+	if c then
+		w.AbsoluteSizeX, w.AbsoluteSizeY = c, c + 4;
+	end;
+	local G = 0;
+	for W, L in pairs(w) do
+		if L and L >= 64 then
+			r[W] = L;
+			G = G + 1;
+		end;
+	end;
+end;
+pcall(U);
+local function l(W)
+	return type(W) == "number" and (W == W and ((W ~= math.huge and W ~= -math.huge)));
+end;
+local function m(W, L, w)
+	if W < L then
+		return L;
+	elseif W > w then
+		return w;
+	end;
+	return W;
+end;
+local function q(W, L)
+	return function(w)
+		if not w or w <= 4096 then
+			return L;
+		end;
+		local d, c = pcall(memory_read, W, w);
+		return (d and tonumber(c)) or L;
+	end;
+end;
+local x = q("float", .0);
+local g = q("byte", 0);
+local H = q("int", 0);
+local function b(W, L)
+	return W[L];
+end;
+local function B(W)
+	if not W then
+		return nil;
+	end;
+	local L, w = pcall(b, W, "Address");
+	w = ((L and w)) and tonumber(w) or nil;
+	return ((w and w > 4096)) and w or nil;
+end;
+local function k(W)
+	if not W then
+		return false;
+	end;
+	local L, w = pcall(b, W, "Parent");
+	return L and w ~= nil;
+end;
+local function Q(W, L)
+	if not W then
+		return nil;
+	end;
+	local w, d = pcall(b, W, "Parent");
+	if not w or d == nil then
+		return nil;
+	end;
+	local c, G = pcall(b, W, "Address");
+	G = ((c and G)) and tonumber(G) or nil;
+	if not G or G <= 4096 then
+		return nil;
+	end;
+	return G;
+end;
+local function I(W, L, w, d)
+	if not k(W) then
+		return false;
+	end;
+	local c, G = pcall(b, W, w);
+	if c and type(G) == "boolean" then
+		return G;
+	end;
+	L = B(W);
+	if not L then
+		return true;
+	end;
+	return g(L + d) ~= 0;
+end;
+local function o(W, L)
+	return I(W, L, "Enabled", r.ScreenGuiEnabled);
+end;
+local function D(W, L)
+	return I(W, L, "Visible", r.FrameVisible);
+end;
+local function C(W, L)
+	if not W then
+		return nil;
+	end;
+	local w, d = pcall(W.FindFirstChild, W, L);
+	return w and d or nil;
+end;
+local function j(W)
+	if not W then
+		return {};
+	end;
+	local L, w = pcall(W.GetChildren, W);
+	return (L and w) or {};
+end;
+local function h(W, L)
+	if not W then
+		return nil;
+	end;
+	local w, d = { W }, 1;
+	while d <= #w do
+		local W = w[d];
+		d = d + 1;
+		for W, d in ipairs(j(W)) do
+			if d.Name == L and d.ClassName == "Frame" then
+				return d;
+			end;
+			w[#w + 1] = d;
+		end;
+		if d > 8192 then
+			return nil;
+		end;
+	end;
+	return nil;
+end;
+local V = {
+		playerGui = nil,
+		playerGuiAt = 0,
+		shakeGui = nil,
+		shakeAddr = nil,
+		safezone = nil,
+		safezoneAddr = nil,
+		button = nil,
+		buttonAddr = nil,
+		shakeAt = 0,
+		powerBar = nil,
+		powerAddr = nil,
+		powerAt = 0,
+	};
+local function Z(W)
+	if V.playerGui and (W - V.playerGuiAt) < e.playerGui then
+		return V.playerGui;
+	end;
+	local L = G();
+	local w = nil;
+	if L then
+		local W, d = pcall(L.FindFirstChildOfClass, L, "PlayerGui");
+		w = (W and d) or C(L, "PlayerGui");
+	end;
+	V.playerGui = w;
+	V.playerGuiAt = W;
+	return w;
+end;
+local t = {
+		slots = {},
+		driven = {},
+		at = 0,
+		ignored = {},
+	};
+local function P(W)
+	return type(W) == "string" and string.find(string.lower(W), "reel", 1, true) ~= nil;
+end;
+local function n(W, L, w)
+	local d = C(w, "fish");
+	local c = C(w, "playerbar");
+	if not ((d and c)) then
+		return nil;
+	end;
+	local G = B(w);
+	local O = B(d);
+	local y = B(c);
+	if not ((G and (O and y))) then
+		return nil;
+	end;
+	local p = C(w, "progress");
+	local e = p and C(p, "bar");
+	return {
+		gui = W,
+		guiAddr = L,
+		bar = w,
+		barAddr = G,
+		name = tostring(w.Name),
+		fish = d,
+		fishAddr = O,
+		playerbar = c,
+		playerbarAddr = y,
+		progressBar = e,
+		progressAddr = B(e),
+	};
+end;
+local function N(W, L, w)
+	if not W then
+		return;
+	end;
+	local d = B(W);
+	local c, G = { W }, 1;
+	while G <= #c and G <= 24 do
+		local O = c[G];
+		G = G + 1;
+		for G, O in ipairs(j(O)) do
+			local y = n(W, d, O);
+			if y then
+				if not w[y.barAddr] then
+					w[y.barAddr] = true;
+					L[#L + 1] = y;
+				end;
+			elseif #c < 24 then
+				c[#c + 1] = O;
+			end;
+		end;
+	end;
+end;
+local function v(W, L)
+	local w, d = W.screenX or .0, L.screenX or .0;
+	if math.abs(w - d) > .01 then
+		if O.swapReelButtons then
+			return w > d;
+		end;
+		return w < d;
+	end;
+	if W.name ~= L.name then
+		return W.name < L.name;
+	end;
+	return W.barAddr < L.barAddr;
+end;
+local function Y(W)
+	if not k(W.bar) then
+		return false;
+	end;
+	return o(W.gui, W.guiAddr) and D(W.bar, W.barAddr);
+end;
+local function s(W, L)
+	if not L and (W - t.at) < e.reel then
+		return;
+	end;
+	t.at = W;
+	local w = Z(W);
+	local d, c = {}, {};
+	N(w and C(w, "reel"), d, c);
+	if w and ((L or #d > 0)) then
+		for W, L in ipairs(j(w)) do
+			if P(L.Name) then
+				N(L, d, c);
+			end;
+		end;
+	end;
+	local G, O = {}, {};
+	for W, L in ipairs(d) do
+		G[L.barAddr] = true;
+		if not t.ignored[L.barAddr] then
+			O[#O + 1] = L;
+		end;
+	end;
+	for W in pairs(t.ignored) do
+		if not G[W] then
+			t.ignored[W] = nil;
+		end;
+	end;
+	d = O;
+	for W, L in ipairs(d) do
+		local w = Q(L.bar, L.barAddr);
+		L.screenX = w and x(w + r.FramePositionX) or .0;
+	end;
+	table.sort(d, v);
+	while #d > 4 do
+		table.remove(d);
+	end;
+	t.slots = d;
+end;
+local function S(W)
+	s(W);
+	for W, L in ipairs(t.slots) do
+		if Y(L) then
+			return true;
+		end;
+	end;
+	return false;
+end;
+local function J(W)
+	if not W then
+		return nil;
+	end;
+	local L = C(W, "default") or C(W, "button");
+	if L then
+		return L;
+	end;
+	for W, L in ipairs(j(W)) do
+		local w = L.ClassName;
+		if w == "ImageButton" or w == "TextButton" then
+			return L;
+		end;
+	end;
+	return nil;
+end;
+local function M(W, L)
+	if not L and (W - V.shakeAt) < e.shake then
+		return;
+	end;
+	local w = Z(W);
+	local d = w and C(w, "shakeui");
+	local c = d and C(d, "safezone");
+	local G = J(c);
+	V.shakeGui, V.safezone, V.button = d, c, G;
+	V.shakeAddr = B(d);
+	V.safezoneAddr = B(c);
+	V.buttonAddr = B(G);
+	V.shakeAt = W;
+end;
+local function f(W)
+	M(W);
+	if V.button and not ((k(V.button) and (k(V.safezone) and k(V.shakeGui)))) then
+		M(W, true);
+	end;
+	if not ((V.shakeGui and (V.safezone and V.button))) then
+		return false;
+	end;
+	return o(V.shakeGui, V.shakeAddr) and (D(V.safezone, V.safezoneAddr) and D(V.button, V.buttonAddr));
+end;
+local F = {
+		Enter = 13,
+		F1 = 112,
+		End = 35,
+		Q = 81,
+		E = 69,
+	};
+local R = {};
+local i = {};
+local X = 20;
+local function a(W)
+	for L, w in pairs(R) do
+		if W >= w then
+			R[L] = nil;
+			keyrelease(L);
+		end;
+	end;
+end;
+local function z()
+	a(math.huge);
+end;
+local function A(W, L, w)
+	w = w or (tick() * 1000);
+	if R[W] then
+		return false;
+	end;
+	local d = i[W];
+	if d and w < d then
+		return false;
+	end;
+	L = L or 25;
+	keypress(W);
+	R[W] = w + L;
+	i[W] = (w + L) + X;
+	return true;
+end;
+local function T()
+	return A(F.Enter, 30);
+end;
+local function E(W)
+	local L = tostring(W or "");
+	local w = tonumber(L);
+	if w and ((w >= 0 and w <= 9)) then
+		return 48 + w;
+	end;
+	if #L == 1 then
+		local W = (L:upper()):byte();
+		if W >= 65 and W <= 90 then
+			return W;
+		end;
+	end;
+	return nil;
+end;
+local function Wm(W)
+	local L = E(W);
+	if not L then
+		return;
+	end;
+	A(L, 25);
+end;
+local Lm = type(iskeypressed) == "function";
+local wm = type(isrbxactive) == "function";
+local dm = type(ismouse1pressed) == "function";
+if not Lm then
+	notify("iskeypressed() unavailable - the F1/END keybinds cannot work. Re-run once Matcha exposes it.", "AutoFish", 6);
+end;
+local function cm()
+	if not wm then
+		return true;
+	end;
+	return isrbxactive() ~= false;
+end;
+local Gm = type(mouse2press) == "function" and type(mouse2release) == "function";
+local Om = false;
+local ym = false;
+local pm = true;
+local em = true;
+local um = tick() * 1000;
+local function rm()
+	if Om and pm then
+		return;
+	end;
+	Om = true;
+	um = tick() * 1000;
+	pm = pcall(mouse1press) and true or false;
+end;
+local function Km()
+	if not Om then
+		return;
+	end;
+	Om = false;
+	pm = true;
+	um = tick() * 1000;
+	pcall(mouse1release);
+end;
+local function Um()
+	if not Gm or (ym and em) then
+		return;
+	end;
+	ym = true;
+	um = tick() * 1000;
+	em = pcall(mouse2press) and true or false;
+end;
+local function lm()
+	if not ym then
+		return;
+	end;
+	ym = false;
+	em = true;
+	um = tick() * 1000;
+	pcall(mouse2release);
+end;
+local function mm()
+	Km();
+	lm();
+end;
+local qm = type(mousemoveabs) == "function";
+local function xm(W, L)
+	if not qm then
+		return false;
+	end;
+	return (pcall(mousemoveabs, math.floor(W + .5), math.floor(L + .5)));
+end;
+local function gm()
+	local W = G();
+	if not W then
+		return nil;
+	end;
+	return W.Character or (workspace and C(workspace, W.Name));
+end;
+local function Hm()
+	if O.equipKey then
+		Wm(O.equipKey);
+	end;
+end;
+local function bm()
+	local W = gm();
+	if not W then
+		return nil;
+	end;
+	local L = j(W);
+	if #L == 0 then
+		return nil;
+	end;
+	for W, L in ipairs(L) do
+		if L.ClassName == "Tool" then
+			return true;
+		end;
+	end;
+	return false;
+end;
+local function Bm()
+	local W = gm();
+	if not W then
+		return false;
+	end;
+	for W, L in ipairs(j(W)) do
+		if L.ClassName == "Tool" and ((tostring(L.Name)):lower()):find("rod", 1, true) then
+			return true;
+		end;
+	end;
+	return false;
+end;
+local km = {
+		done = true,
+		startedAt = 0,
+		pressedAt = 0,
+		attempts = 0,
+	};
+local function Qm(W)
+	km.done = false;
+	km.startedAt = W;
+	km.pressedAt = 0;
+	km.attempts = 0;
+end;
+local function Im(W)
+	if km.done then
+		return true;
+	end;
+	if km.attempts == 0 then
+		if Bm() then
+			km.done = true;
+			return true;
+		end;
+		Hm();
+		km.attempts = 1;
+		km.pressedAt = W;
+		return false;
+	end;
+	if (W - km.startedAt) >= O.equipSettleMs then
+		km.done = true;
+		return true;
+	end;
+	if (W - km.pressedAt) < O.equipVerifyMs then
+		return false;
+	end;
+	local L = bm();
+	if L == true then
+		km.done = true;
+		return true;
+	end;
+	if L == nil then
+		return false;
+	end;
+	if km.attempts >= O.equipAttempts then
+		km.done = true;
+		return true;
+	end;
+	Hm();
+	km.attempts = km.attempts + 1;
+	km.pressedAt = W;
+	return false;
+end;
+local function om(W, L)
+	if not W then
+		return nil;
+	end;
+	local w = x((W + r.FrameSizeX) + L);
+	if not l(w) or w < -0.05 or w > 1.5 then
+		return nil;
+	end;
+	return m(w * 100.0, .0, 100.0);
+end;
+local function Dm(W)
+	return om(W, 0);
+end;
+local function Cm(W)
+	if V.powerBar and (W - V.powerAt) < e.power then
+		local W = Q(V.powerBar, V.powerAddr);
+		if W then
+			return W;
+		end;
+	end;
+	local L = gm();
+	local w = L and C(L, "HumanoidRootPart");
+	local d = w and C(w, "power");
+	V.powerBar = d and h(d, "bar") or nil;
+	V.powerAddr = B(V.powerBar);
+	V.powerAt = W;
+	return V.powerAddr;
+end;
+local function jm(W)
+	return om(W, 8);
+end;
+local function hm()
+	return m(O.castPower, 1.0, 100.0);
+end;
+local Vm = {
+		EdgeBoundary = .1,
+		StaleTickS = .12,
+		MinDwellS = .033,
+		WarmupS = .12,
+		MaxVelocity = 3.0,
+		BarVelTauS = .015,
+		FishVelTauS = .015,
+		Kp = 200.0,
+		Ki = 1.0,
+		Kd = 2.0,
+		IntegralClamp = .2,
+		HoldAccel = .3,
+		DropAccel = .15,
+	};
+local Zm = {};
+Zm.__index = Zm;
+function Zm.new(W, L)
+	local w = setmetatable({}, Zm);
+	w.hold = W;
+	w.release = L;
+	w:Reset();
+	return w;
+end;
+function Zm.Reset(W)
+	local L = tick();
+	W.samples = 0;
+	W.lastTickAt = L;
+	W.warmUntil = L + Vm.WarmupS;
+	W.prevFish = .0;
+	W.prevBar = .0;
+	W.lastFishRaw = nil;
+	W.lastBarRaw = nil;
+	W.fishVel = .0;
+	W.barVel = .0;
+	W.errInt = .0;
+	W.duty = .5;
+	W.sigma = .0;
+	W.slotAt = .0;
+	W.pressed = false;
+	W.lastHalfWidth = nil;
+end;
+function Zm._Plan(W, L, w, d, c)
+	local G = ((L - W.prevFish)) / d;
+	local O = ((w - W.prevBar)) / d;
+	W.prevFish, W.prevBar = L, w;
+	local y = 1.0 - math.exp(-d / c.FishVelTauS);
+	local p = 1.0 - math.exp(-d / c.BarVelTauS);
+	W.fishVel = W.fishVel + (y * ((m(G, -c.MaxVelocity, c.MaxVelocity) - W.fishVel)));
+	W.barVel = W.barVel + (p * ((m(O, -c.MaxVelocity, c.MaxVelocity) - W.barVel)));
+	local e = W.barVel - W.fishVel;
+	local u = (e > .0) and c.DropAccel or c.HoldAccel;
+	local r = ((e * math.abs(e))) / ((2.0 * u));
+	local K = ((L - w)) - r;
+	W.errInt = m(W.errInt + (((c.Ki * K)) * d), -c.IntegralClamp, c.IntegralClamp);
+	local U = c.HoldAccel + c.DropAccel;
+	W.duty = m(((((((c.Kp * K) - (c.Kd * e))) + c.DropAccel)) / U) + W.errInt, .0, 1.0);
+end;
+function Zm.UpdateHybrid(W, L, w, d)
+	local c = Vm;
+	local G = tick();
+	local O = (d >= .01) and math.min(.5, d * .5) or c.EdgeBoundary;
+	local y, p = O, 1.0 - O;
+	local e = math.min(c.EdgeBoundary, math.max(.004, O * .5));
+	local u = m(L, y, p);
+	if W.lastHalfWidth == nil then
+		W.lastHalfWidth = O;
+	elseif math.abs(O - W.lastHalfWidth) > .004 then
+		W.lastHalfWidth = O;
+		W.errInt = .0;
+	end;
+	local r = u - w;
+	if (w < (y + e) and r > 0) or (w > (p - e) and r < 0) then
+		if w ~= W.lastBarRaw then
+			W.lastFishRaw, W.lastBarRaw = L, w;
+			W.lastTickAt = G;
+			W.prevFish, W.prevBar = u, w;
+		end;
+		W.slotAt = G - c.MinDwellS;
+		W.pressed = r > 0;
+		if W.pressed then
+			W.hold();
+		else
+			W.release();
+		end;
+		return;
+	end;
+	local K = G - W.lastTickAt;
+	if w == W.lastBarRaw then
+		if K < c.StaleTickS then
+			return;
+		end;
+		W.lastFishRaw, W.lastBarRaw = L, w;
+		W.lastTickAt = G;
+		W.prevFish, W.prevBar = u, w;
+		if r > 0 then
+			W.hold();
+		else
+			W.release();
+		end;
+		return;
+	end;
+	W.lastFishRaw, W.lastBarRaw = L, w;
+	W.lastTickAt = G;
+	K = m(K, .001, .1);
+	W.samples = W.samples + 1;
+	if W.samples <= 2 or G < W.warmUntil then
+		W.prevFish, W.prevBar = u, w;
+		if r > math.max(.015, d * .04) then
+			W.hold();
+		else
+			W.release();
+		end;
+		return;
+	end;
+	W:_Plan(u, w, K, c);
+	if (G - W.slotAt) >= c.MinDwellS then
+		W.slotAt = G;
+		W.sigma = W.sigma + W.duty;
+		W.pressed = W.sigma >= 1.0;
+		if W.pressed then
+			W.sigma = W.sigma - 1.0;
+		end;
+	end;
+	if W.pressed then
+		W.hold();
+	else
+		W.release();
+	end;
+end;
+function Zm.Update(W, L, w, d)
+	if not ((l(L) and l(w))) then
+		W.release();
+		return;
+	end;
+	if not l(d) or d < .001 then
+		d = .001;
+	elseif d > 2.0 then
+		d = 2.0;
+	end;
+	return W:UpdateHybrid(L, w, d);
+end;
+local tm = Zm.new(rm, Km);
+local Pm = Zm.new(Um, lm);
+local nm = { { ctrl = tm, release = Km }, { ctrl = Pm, release = lm } };
+local Nm = { nil, nil };
+local function vm(W)
+	Nm[W] = nil;
+	t.driven[W] = nil;
+	nm[W].ctrl:Reset();
+	nm[W].release();
+end;
+local function Ym()
+	for W = 1, #nm, 1 do
+		vm(W);
+	end;
+end;
+local sm = false;
+local function Sm()
+	if sm then
+		return;
+	end;
+	sm = true;
+	notify("Second reel found but mouse2press() is missing - only the left-click fish will be reeled.", "AutoFish", 6);
+end;
+local function Jm(W)
+	if not W then
+		return nil;
+	end;
+	for L = 1, #nm, 1 do
+		if Nm[L] == W then
+			return L;
+		end;
+	end;
+	return nil;
+end;
+local Mm = {
+		phase = "OFF",
+		castStartedAt = 0,
+		castPressAt = 0,
+		castReleasedAt = 0,
+		castBarSeen = false,
+		castArmed = false,
+		reelDownSeen = false,
+		castThreshold = 90.0,
+		castWaitTimeoutMs = 15000,
+		castChargeLastPct = nil,
+		castChargeMotionAt = 0,
+		shakeStartedAt = 0,
+		reelClosedAt = 0,
+		lastReelCaught = false,
+		lastShakedAt = 0,
+		shakeCount = 0,
+		shakingIntervalMs = 25,
+		shakeSeen = false,
+		shakeUnstickAt = 0,
+		maxProgress = 0,
+		reelStartedAt = 0,
+		reelMotionAt = 0,
+		reelSignature = nil,
+		reelRecovered = false,
+		castEverSeen = false,
+		reelDone = {},
+		reelDoneCount = 0,
+		doneAt = 0,
+		caught = 0,
+		lost = 0,
+		timeouts = 0,
+		nukes = 0,
+		stabs = 0,
+	};
+local fm = { "nuke", "bomb", "defuse" };
+local Fm = {
+		Frame = true,
+		ImageLabel = true,
+		ImageButton = true,
+		TextLabel = true,
+		TextButton = true,
+		ScrollingFrame = true,
+		CanvasGroup = true,
+	};
+local function Rm(W, L)
+	return ((l(W) and math.abs(W) <= L)) and W or nil;
+end;
+local im = { {
+			unit = "scale",
+			move = "scaleMove",
+			first = "scale0",
+			last = "lastScale",
+			read = function(W)
+				if not W then
+					return nil;
+				end;
+				return Rm(x(W + r.FramePositionX), 2.0);
+			end,
+		}, {
+			unit = "offset",
+			move = "offMove",
+			first = "off0",
+			last = "lastOff",
+			read = function(W)
+				if not W then
+					return nil;
+				end;
+				local L = H((W + r.FramePositionX) + 4);
+				return (math.abs(L) <= 4000) and L or nil;
+			end,
+		}, {
+			unit = "rot",
+			move = "rotMove",
+			first = "rot0",
+			last = "lastRot",
+			read = function(W)
+				if not W then
+					return nil;
+				end;
+				return Rm(x(W + r.FrameRotation), 360.0);
+			end,
+		} };
+local Xm = {};
+for W, L in ipairs(im) do
+	Xm[L.unit] = L;
+end;
+local am = {
+		gui = nil,
+		guiAddr = nil,
+		guiClass = nil,
+		at = 0,
+		deepAt = 0,
+		kids = nil,
+		nestIdx = 0,
+		ignoredAddr = nil,
+	};
+local function zm(W)
+	local L = (tostring(W or "")):lower();
+	for W, w in ipairs(fm) do
+		if L:find(w, 1, true) then
+			return true;
+		end;
+	end;
+	return false;
+end;
+local function Am(W, L)
+	if not L and (W - am.at) < e.nuke then
+		return;
+	end;
+	if am.gui and (W - am.at) > 1000 then
+		am.gui, am.guiAddr, am.guiClass = nil, nil, nil;
+	end;
+	am.at = W;
+	local w = Z(W);
+	if not w then
+		am.gui, am.guiAddr, am.guiClass = nil, nil, nil;
+		return;
+	end;
+	local d = C(w, "NukeMinigame");
+	if not d and am.gui then
+		local W, L = pcall(b, am.gui, "Parent");
+		if W and L then
+			d = am.gui;
+		end;
+	end;
+	if not d and ((L or (W - am.deepAt) >= e.nukeDeep)) then
+		am.deepAt = W;
+		am.kids = j(w);
+		for W, L in ipairs(am.kids) do
+			if zm(L.Name) then
+				d = L;
+				break;
+			end;
+		end;
+	end;
+	local c = nil;
+	if not d then
+		c = (am.deepAt == W and am.kids) or j(w);
+	end;
+	if not d and (c and #c > 0) then
+		for W = 1, math.min(e.nukeNestedPer, #c), 1 do
+			am.nestIdx = (am.nestIdx % #c) + 1;
+			for W, L in ipairs(j(c[am.nestIdx])) do
+				if zm(L.Name) then
+					d = L;
+					break;
+				end;
+			end;
+			if d then
+				break;
+			end;
+		end;
+	end;
+	if d then
+		local W = B(d);
+		if am.ignoredAddr and W == am.ignoredAddr then
+			am.gui, am.guiAddr, am.guiClass = nil, nil, nil;
+			return;
+		end;
+		am.gui, am.guiAddr, am.guiClass = d, W, d.ClassName;
+	else
+		am.gui, am.guiAddr, am.guiClass = nil, nil, nil;
+		am.ignoredAddr = nil;
+	end;
+end;
+local function Tm(W)
+	Am(W);
+	if not am.gui then
+		return false;
+	end;
+	if am.guiClass == "ScreenGui" then
+		return o(am.gui, am.guiAddr);
+	end;
+	return D(am.gui, am.guiAddr);
+end;
+local function Em(W)
+	local L = {};
+	local w = B(W);
+	local d, c = { { inst = W, addr = w } }, 1;
+	while c <= #d and ((#L < 48 and c <= 128)) do
+		local W = d[c];
+		c = c + 1;
+		for w, c in ipairs(j(W.inst)) do
+			local G = c.ClassName;
+			local O = B(c);
+			if O then
+				if Fm[G] then
+					local w = {
+							inst = c,
+							addr = O,
+							parent = W.inst,
+							parentAddr = W.addr,
+						};
+					for W, L in ipairs(im) do
+						w[L.move] = .0;
+					end;
+					L[#L + 1] = w;
+				end;
+				d[#d + 1] = { inst = c, addr = O };
+			end;
+		end;
+	end;
+	return L;
+end;
+local WK = { lines = {}, startAt = tick() * 1000, lastWriteAt = 0 };
+local function LK(W)
+	local L = ((tick() * 1000 - WK.startAt)) / 1000.0;
+	WK.lines[#WK.lines + 1] = string.format("%9.2fs  %s", L, W);
+	while #WK.lines > 800 do
+		table.remove(WK.lines, 1);
+	end;
+end;
+local function wK()
+	if type(writefile) ~= "function" then
+		return;
+	end;
+	pcall(writefile, "nuke_log.txt", table.concat(WK.lines, "\n"));
+end;
+local dK = {
+		gui = nil,
+		candidates = {},
+		locked = nil,
+		unit = "scale",
+		target = .0,
+		halfRange = .5,
+		deadzone = .05,
+		beganAt = 0,
+		sampleStart = 0,
+		lastTapAt = 0,
+		lastPos = nil,
+		lastMoveAt = 0,
+		warned = false,
+		invalids = 0,
+		taps = 0,
+		marker = nil,
+		markerAddr = nil,
+		lastStatusAt = 0,
+	};
+function dK.Begin(W, L, w)
+	W.gui = L;
+	W.locked = nil;
+	W.beganAt = w;
+	W.sampleStart = w;
+	W.lastTapAt = 0;
+	W.lastPos = nil;
+	W.lastMoveAt = w;
+	W.warned = false;
+	W.invalids = 0;
+	W.taps = 0;
+	W.lastStatusAt = 0;
+	local d = C(L, "Center");
+	local c = d and C(d, "Marker");
+	W.marker = c;
+	W.markerAddr = B(c);
+	W.candidates = Em(L);
+	LK(string.format("begin: candidates=%d markerAddr=%s", #W.candidates, tostring(W.markerAddr)));
+end;
+function dK.Sample(W)
+	for W, L in ipairs(W.candidates) do
+		for W, w in ipairs(im) do
+			local d = w.read(Q(L.inst, L.addr));
+			if d then
+				local W = L[w.last];
+				if W ~= nil then
+					L[w.move] = L[w.move] + math.abs(d - W);
+				end;
+				if L[w.first] == nil then
+					L[w.first] = d;
+				end;
+				L[w.last] = d;
+			end;
+		end;
+	end;
+end;
+function dK.TryLock(W, L)
+	if (L - W.sampleStart) < 250 then
+		return;
+	end;
+	local w, d, c = nil, .0, nil;
+	local G = Q(W.marker, W.markerAddr);
+	for W, L in ipairs(W.candidates) do
+		local O = Q(L.parent, L.parentAddr);
+		local y = O and math.abs(H((O + r.FrameSizeX) + 4)) or 0;
+		local p = (L.offMove > 1) and (L.offMove / math.max(80, y)) or .0;
+		local e = L.rotMove / 90.0;
+		local u, K = "scale", L.scaleMove;
+		if p > K then
+			u, K = "offset", p;
+		end;
+		if e > K then
+			u, K = "rot", e;
+		end;
+		if G and L.addr == G then
+			K = K * 2.0;
+		end;
+		if K > d then
+			w, d, c = L, K, u;
+		end;
+	end;
+	if not w or d < .004 then
+		return;
+	end;
+	W.locked = w;
+	W.unit = c;
+	if c == "scale" then
+		W.target = ((G and w.addr == G)) and .5 or (w.scale0 or .5);
+		W.halfRange = .5;
+	elseif c == "offset" then
+		local L = Q(w.parent, w.parentAddr);
+		local d = L and math.abs(H((L + r.FrameSizeX) + 4)) or 0;
+		W.target = w.off0 or .0;
+		W.halfRange = (d > 40) and (d / 2) or 200;
+	else
+		W.target = w.rot0 or .0;
+		W.halfRange = 30.0;
+	end;
+	W.deadzone = O.nukeDeadzoneFrac * W.halfRange;
+	W.lastPos = nil;
+	W.lastMoveAt = L;
+	LK(string.format("lock: unit=%s marker=%s target=%.3f range=%.1f score=%.4f", W.unit, tostring(G ~= nil and w.addr == G), W.target, W.halfRange, d));
+end;
+function dK.ReadPos(W)
+	return Xm[W.unit].read(Q(W.locked.inst, W.locked.addr));
+end;
+function dK.Update(W, L)
+	if (L - WK.lastWriteAt) >= 2000 then
+		WK.lastWriteAt = L;
+		wK();
+	end;
+	if not W.locked then
+		W:Sample();
+		W:TryLock(L);
+		if not W.locked and ((not W.warned and (L - W.beganAt) > 4000)) then
+			W.warned = true;
+			LK("no mover found after 4s");
+		end;
+		return;
+	end;
+	local w = W:ReadPos();
+	if w == nil then
+		W.invalids = W.invalids + 1;
+		if W.invalids > 30 and W.gui then
+			LK("locked read went invalid, rescanning");
+			W:Begin(W.gui, L);
+		end;
+		return;
+	end;
+	W.invalids = 0;
+	local d = w - W.target;
+	local c = (W.lastPos ~= nil) and (w - W.lastPos) or .0;
+	W.lastPos = w;
+	if math.abs(c) > (W.halfRange * .0005) then
+		W.lastMoveAt = L;
+	end;
+	if (L - W.lastMoveAt) > 1500 then
+		LK("locked element static for 1.5s, rescanning");
+		W.locked = nil;
+		W.candidates = Em(W.gui);
+		W.sampleStart = L;
+		return;
+	end;
+	if (L - W.lastStatusAt) >= 400 then
+		W.lastStatusAt = L;
+		LK(string.format("pos=%.3f err=%.3f vel=%.4f taps=%d", w, d, c, W.taps));
+	end;
+	local G = d + (c * O.nukePrediction);
+	if math.abs(G) <= W.deadzone then
+		return;
+	end;
+	if (d * c) < 0 and (math.abs(c) * O.nukePrediction) >= math.abs(d) then
+		return;
+	end;
+	local y = G > 0;
+	if O.nukeInvert then
+		y = not y;
+	end;
+	local p = math.min(1.0, math.abs(G) / W.halfRange);
+	local e = math.max(25, O.nukeTapIntervalMs * ((1.35 - p)));
+	if (L - W.lastTapAt) < e then
+		return;
+	end;
+	if A(y and F.Q or F.E, O.nukeTapHoldMs, L) then
+		W.lastTapAt = L;
+		W.taps = W.taps + 1;
+		LK(string.format("tap %s err=%.3f pred=%.3f vel=%.4f", y and "Q" or "E", d, G, c));
+	end;
+end;
+local function cK(W)
+	Ym();
+	mm();
+	z();
+	LK(string.format("EXIT success=%s taps=%d after=%.1fs", tostring(W), dK.taps, ((tick() * 1000 - dK.beganAt)) / 1000.0));
+	wK();
+	if W then
+		Mm.nukes = Mm.nukes + 1;
+		print("[AutoFish] Nuke survived (" .. (Mm.nukes .. " total)"));
+	end;
+	Mm.lastReelCaught = false;
+	Mm.doneAt = 0;
+	Mm.phase = "DONE";
+end;
+local function GK(W)
+	mm();
+	if not Tm(W) then
+		cK(true);
+		return;
+	end;
+	if (W - dK.beganAt) > O.nukeTimeoutMs then
+		am.ignoredAddr = am.guiAddr;
+		cK(false);
+		return;
+	end;
+	if not dK.locked and (W - dK.beganAt) > O.nukeLockTimeoutMs then
+		LK("no mover found, treating this GUI as a false positive");
+		am.ignoredAddr = am.guiAddr;
+		cK(false);
+		return;
+	end;
+	dK:Update(W);
+end;
+local OK = {
+		gui = nil,
+		guiAddr = nil,
+		guiClass = nil,
+		at = 0,
+		ignoredAddr = nil,
+		running = false,
+		startedAt = 0,
+		pending = nil,
+		releaseAt = 0,
+		nextPressAt = 0,
+		right = false,
+		taps = 0,
+	};
+local function yK(W, L)
+	if not L and (W - OK.at) < e.stab then
+		return;
+	end;
+	OK.at = W;
+	local w = Z(W);
+	local d = w and C(w, O.stabGuiName) or nil;
+	if not d then
+		OK.gui, OK.guiAddr, OK.guiClass = nil, nil, nil;
+		OK.ignoredAddr = nil;
+		return;
+	end;
+	local c, G = pcall(b, d, "ClassName");
+	OK.gui, OK.guiAddr = d, B(d);
+	OK.guiClass = (c and G) or nil;
+end;
+local function pK(W)
+	yK(W);
+	if not OK.gui then
+		return false;
+	end;
+	if OK.ignoredAddr and OK.guiAddr == OK.ignoredAddr then
+		return false;
+	end;
+	if OK.guiClass == "ScreenGui" then
+		return o(OK.gui, OK.guiAddr);
+	end;
+	return D(OK.gui, OK.guiAddr);
+end;
+local eK = false;
+local function uK()
+	local W = OK.pending;
+	OK.pending = nil;
+	if W == 2 then
+		lm();
+	elseif W == 1 then
+		Km();
+	end;
+end;
+local function rK(W)
+	local L = ((OK.right and Gm)) and 2 or 1;
+	if OK.pending then
+		if W < OK.releaseAt then
+			return;
+		end;
+		local w = OK.pending;
+		uK();
+		if w == L then
+			return;
+		end;
+	end;
+	if W < OK.nextPressAt then
+		return;
+	end;
+	local w = L == 2;
+	if OK.right and (not Gm and not eK) then
+		eK = true;
+	end;
+	if w then
+		OK.pending = 2;
+		Um();
+	else
+		OK.pending = 1;
+		rm();
+	end;
+	OK.taps = OK.taps + 1;
+	OK.right = not OK.right;
+	OK.releaseAt = W + O.stabHoldMs;
+	OK.nextPressAt = W + O.stabIntervalMs;
+end;
+local function KK(W)
+	OK.running = true;
+	OK.startedAt = W;
+	OK.taps = 0;
+	OK.pending = nil;
+	OK.releaseAt = 0;
+	OK.nextPressAt = 0;
+	OK.right = O.stabStartRight and true or false;
+	mm();
+end;
+local function UK(W, L)
+	OK.running = false;
+	OK.pending = nil;
+	mm();
+	if L then
+		Mm.stabs = Mm.stabs + 1;
+	end;
+end;
+local function lK(W)
+	if not cm() then
+		if OK.pending then
+			uK();
+		end;
+		return;
+	end;
+	local L = pK(W);
+	if L then
+		if not OK.running then
+			KK(W);
+		end;
+	elseif OK.running then
+		UK(W, true);
+		return;
+	else
+		return;
+	end;
+	if (W - OK.startedAt) > O.stabTimeoutMs then
+		OK.ignoredAddr = OK.guiAddr;
+		UK(W, false);
+		return;
+	end;
+	rK(W);
+end;
+local function mK(W)
+	W = W or (tick() * 1000);
+	return Mm.reelClosedAt > 0 and (W - Mm.reelClosedAt) < 700;
+end;
+local function qK()
+	Ym();
+	mm();
+	local W = tick() * 1000;
+	Mm.castStartedAt = W;
+	Mm.castPressAt = 0;
+	Mm.castReleasedAt = 0;
+	Mm.castBarSeen = false;
+	Mm.castArmed = false;
+	Mm.reelDownSeen = false;
+	Mm.castChargeLastPct = nil;
+	Mm.castChargeMotionAt = 0;
+	Mm.shakeStartedAt = 0;
+	Mm.lastShakedAt = 0;
+	Mm.shakeCount = 0;
+	Mm.shakeSeen = false;
+	Mm.shakeUnstickAt = 0;
+	Mm.maxProgress = 0;
+	Mm.reelStartedAt = 0;
+	Mm.reelMotionAt = 0;
+	Mm.reelSignature = nil;
+	Mm.reelRecovered = false;
+	Mm.reelDone = {};
+	Mm.reelDoneCount = 0;
+	Mm.doneAt = 0;
+	Mm.castThreshold = hm();
+	Mm.castWaitTimeoutMs = math.max(5000, O.castTimeoutMs);
+	Mm.shakingIntervalMs = O.shakeIntervalMs;
+	s(W, true);
+	M(W, true);
+	V.powerAt = 0;
+	local L = mK(W);
+	Mm.phase = ((S(W) and not L)) and "FISHING" or (((f(W) and not L)) and "SHAKE" or "CASTING");
+	Mm.shakeSeen = Mm.phase == "SHAKE";
+	if O.mode == "rod" and (Mm.phase == "CASTING" and bm() == false) then
+		Qm(W);
+	end;
+end;
+local function xK(W)
+	Ym();
+	mm();
+	t.slots = {};
+	t.at = 0;
+	Mm.phase = W or "OFF";
+end;
+local function gK(W, L)
+	Mm.timeouts = Mm.timeouts + 1;
+	if L and (O.reequipOnDeadCast and not Mm.castEverSeen) then
+		xK("OFF");
+		Qm(W);
+		return;
+	end;
+	if O.castOnTimeout then
+		qK();
+	else
+		xK("OFF");
+	end;
+end;
+local function HK(W)
+	if not S(W) then
+		Mm.reelDownSeen = true;
+	elseif Mm.reelDownSeen and not mK(W) then
+		Km();
+		Mm.castEverSeen = true;
+		Mm.phase = "FISHING";
+		return;
+	end;
+	if f(W) and not mK(W) then
+		Km();
+		Mm.castEverSeen = true;
+		Mm.lastShakedAt = 0;
+		Mm.shakeSeen = true;
+		if Mm.castReleasedAt == 0 then
+			Mm.castReleasedAt = W;
+		end;
+		Mm.phase = "SHAKE";
+		return;
+	end;
+	if Mm.castStartedAt == 0 then
+		Mm.castStartedAt = W;
+	end;
+	if not Om then
+		if (W - Mm.castPressAt) >= O.castRepressGapMs then
+			rm();
+			Mm.castPressAt = W;
+		end;
+	elseif not Mm.castBarSeen and (W - Mm.castPressAt) >= O.castRepressMs then
+		Km();
+		Mm.castPressAt = W;
+	end;
+	local L = Cm(W);
+	if not L then
+		local L = W - Mm.castStartedAt;
+		if not Mm.castBarSeen and L >= 2000 then
+			gK(W, true);
+			return;
+		end;
+		if L >= Mm.castWaitTimeoutMs then
+			gK(W);
+		end;
+		return;
+	end;
+	Mm.castBarSeen = true;
+	Mm.castEverSeen = true;
+	local w = jm(L);
+	if w then
+		if not Mm.castArmed and w < Mm.castThreshold then
+			Mm.castArmed = true;
+		end;
+		if Mm.castArmed and w >= Mm.castThreshold then
+			Km();
+			Mm.castReleasedAt = W;
+			Mm.phase = "CASTED";
+			return;
+		end;
+	else
+		V.powerAt = 0;
+	end;
+	local d = (w ~= nil) and ((Mm.castChargeLastPct == nil or math.abs(w - Mm.castChargeLastPct) >= .5));
+	if d then
+		Mm.castChargeMotionAt = W;
+	end;
+	Mm.castChargeLastPct = w;
+	if Mm.castChargeMotionAt == 0 then
+		Mm.castChargeMotionAt = W;
+	end;
+	if Mm.castBarSeen and (W - Mm.castChargeMotionAt) >= 1200 then
+		gK(W);
+		return;
+	end;
+	if (W - Mm.castStartedAt) >= Mm.castWaitTimeoutMs then
+		gK(W);
+	end;
+end;
+local function bK(W)
+	mm();
+	if Mm.castReleasedAt == 0 then
+		Mm.castReleasedAt = W;
+	end;
+	if (W - Mm.castReleasedAt) < O.postCastDelayMs then
+		return;
+	end;
+	Mm.lastShakedAt = 0;
+	Mm.phase = "SHAKE";
+end;
+local function BK(W)
+	mm();
+	if S(W) and (not mK(W) and (W - Mm.castReleasedAt) >= 400) then
+		Mm.phase = "FISHING";
+		return;
+	end;
+	if Mm.shakeStartedAt == 0 then
+		Mm.shakeStartedAt = W;
+	end;
+	if Mm.shakeUnstickAt == 0 then
+		Mm.shakeUnstickAt = W;
+	elseif (W - Mm.shakeUnstickAt) >= 1500 then
+		Mm.shakeUnstickAt = W;
+		if not R[F.Enter] then
+			keyrelease(F.Enter);
+		end;
+	end;
+	if Mm.lastShakedAt == 0 or (W - Mm.lastShakedAt) >= Mm.shakingIntervalMs then
+		if T() then
+			Mm.shakeCount = Mm.shakeCount + 1;
+			Mm.lastShakedAt = W;
+		end;
+	end;
+	if not Mm.shakeSeen and f(W) then
+		Mm.shakeSeen = true;
+	end;
+	if not Mm.shakeSeen and (W - Mm.shakeStartedAt) >= O.castLandTimeoutMs then
+		Mm.timeouts = Mm.timeouts + 1;
+		qK();
+		return;
+	end;
+	if (W - Mm.shakeStartedAt) >= O.shakeTimeoutMs then
+		qK();
+	end;
+end;
+local function kK(W)
+	Ym();
+	mm();
+	Mm.reelClosedAt = tick() * 1000;
+	if W then
+		local W = math.max(1, Mm.reelDoneCount);
+		Mm.caught = Mm.caught + W;
+		Mm.lastReelCaught = true;
+		print("[AutoFish] " .. ((((W > 1) and ("Caught " .. (W .. " at once!")) or "Catch successful!")) .. (" (" .. (Mm.caught .. " total)"))));
+	else
+		Mm.lost = Mm.lost + 1;
+		Mm.lastReelCaught = false;
+	end;
+	xK("DONE");
+end;
+local function QK(W, L)
+	if Mm.reelStartedAt == 0 then
+		Mm.reelStartedAt = W;
+		Mm.reelMotionAt = W;
+	end;
+	if not ((L or (((t.driven[1] or t.driven[2])) and (W - e.bookAt) < e.book))) then
+		e.bookAt = W;
+		s(W, Nm[1] == nil and Nm[2] == nil);
+		local L = {};
+		for W, w in ipairs(t.slots) do
+			if Y(w) then
+				L[#L + 1] = w;
+			end;
+		end;
+		if #L == 0 then
+			kK(Mm.maxProgress >= O.completionThreshold);
+			return;
+		end;
+		local w = {};
+		for W, L in ipairs(L) do
+			w[L.barAddr] = true;
+		end;
+		for W = 1, #nm, 1 do
+			local L = Nm[W];
+			if L and not w[L] then
+				vm(W);
+			end;
+		end;
+		local d = O.dualReel and #nm or 1;
+		local c = {};
+		for W, L in ipairs(L) do
+			local w = Jm(L.barAddr);
+			if not w then
+				for W = 1, d, 1 do
+					if Nm[W] == nil then
+						w = W;
+						Nm[W] = L.barAddr;
+						nm[W].ctrl:Reset();
+						if W > 1 and not Gm then
+							Sm();
+						end;
+						break;
+					end;
+				end;
+			end;
+			if w then
+				c[w] = L;
+			end;
+		end;
+		local G = true;
+		local y = "";
+		for W = 1, #nm, 1 do
+			local L = c[W];
+			t.driven[W] = L;
+			if not L then
+				nm[W].release();
+			else
+				local w = Dm(Q(L.progressBar, L.progressAddr));
+				if w then
+					if w > Mm.maxProgress then
+						Mm.maxProgress = w;
+					end;
+					if w < O.completionThreshold then
+						G = false;
+					elseif not Mm.reelDone[L.barAddr] then
+						Mm.reelDone[L.barAddr] = true;
+						Mm.reelDoneCount = Mm.reelDoneCount + 1;
+					end;
+				else
+					G = false;
+				end;
+				if ((L.readAt or 0)) > 0 then
+					y = y .. string.format("|%d,%.4f,%.4f,%.2f", W, L.readFish, L.readBar, w or -1.0);
+				else
+					G = false;
+				end;
+			end;
+		end;
+		if y ~= Mm.reelSignature then
+			Mm.reelSignature = y;
+			Mm.reelMotionAt = W;
+		end;
+		if G then
+			kK(true);
+			return;
+		end;
+		if (W - Mm.reelMotionAt) >= O.reelStallMs then
+			Mm.reelMotionAt = W;
+			Mm.reelSignature = nil;
+			Ym();
+			mm();
+			s(W, true);
+			return;
+		end;
+		if O.reelTimeoutMs > 0 and (W - Mm.reelStartedAt) >= O.reelTimeoutMs then
+			Mm.timeouts = Mm.timeouts + 1;
+			kK(Mm.maxProgress >= O.completionThreshold);
+			return;
+		end;
+	end;
+	local w = t.driven;
+	for L = 1, #nm, 1 do
+		local d = w[L];
+		if d then
+			local w = Q(d.fish, d.fishAddr);
+			local c = Q(d.playerbar, d.playerbarAddr);
+			if not ((w and c)) then
+				d.fish = C(d.bar, "fish") or d.fish;
+				d.playerbar = C(d.bar, "playerbar") or d.playerbar;
+				w = Q(d.fish, d.fishAddr);
+				c = Q(d.playerbar, d.playerbarAddr);
+			end;
+			if w and c then
+				d.fishAddr, d.playerbarAddr = w, c;
+				local G = x(w + r.FramePositionX) + (x(w + r.FrameSizeX) * .5);
+				local O = x(c + r.FramePositionX);
+				local y = x(c + r.FrameSizeX);
+				if l(y) and y >= .001 then
+					d.readFish, d.readBar, d.readAt = G, O, W;
+					nm[L].ctrl:Update(G, O, y);
+				else
+					d.readAt = 0;
+					nm[L].release();
+				end;
+			else
+				d.readAt = 0;
+				nm[L].release();
+			end;
+		end;
+	end;
+end;
+local function IK(W)
+	if S(W) and not mK(W) then
+		Mm.doneAt = 0;
+		Mm.phase = "FISHING";
+		return;
+	end;
+	if Mm.doneAt == 0 then
+		Mm.doneAt = W;
+	end;
+	local L = Mm.lastReelCaught and O.postCatchDelayMs or O.postLostDelayMs;
+	if (W - Mm.doneAt) < L then
+		return;
+	end;
+	qK();
+end;
+local oK = {
+		CASTING = HK,
+		CASTED = bK,
+		SHAKE = BK,
+		FISHING = QK,
+		DONE = IK,
+		NUKE = GK,
+	};
+local DK = false;
+local function CK(W)
+	W = W and true or false;
+	if W == DK then
+		return;
+	end;
+	DK = W;
+	if W then
+		Mm.phase = "OFF";
+		Mm.reelClosedAt = 0;
+		t.ignored = {};
+		um = tick() * 1000;
+		if type(setrobloxinput) == "function" then
+			pcall(setrobloxinput, true);
+		end;
+		Mm.castEverSeen = false;
+		km.done = true;
+		if O.mode == "rod" then
+			qK();
+			if Mm.phase == "CASTING" then
+				Mm.phase = "OFF";
+				Qm(tick() * 1000);
+			end;
+		end;
+	else
+		Ym();
+		mm();
+		Mm.phase = "OFF";
+	end;
+	notify(W and "AutoFish ON" or "AutoFish OFF", "AutoFish", 2);
+end;
+local function jK(W)
+	local L = y[W];
+	if not L or L == O.mode then
+		return false;
+	end;
+	if DK then
+		CK(false);
+	end;
+	O.mode = L;
+	return true;
+end;
+local hK;
+do
+	local L;
+	local w = W and not rawget(_G, "UI_RELOAD");
+	if w then
+		_G.UI_RELOAD = true;
+	end;
+	if not rawget(_G, "UI_LOCAL") then
+		pcall(function()
+			L = game:HttpGet("https://raw.githubusercontent.com/Shoobie-code/linoria-inspired/refs/heads/main/main");
+		end);
+		if type(L) == "string" and #L > 1000 then
+			pcall(writefile, "UILib.lua", L);
+		else
+			L = nil;
+		end;
+	end;
+	if not L then
+		pcall(function()
+			L = readfile("UILib.lua");
+		end);
+	end;
+	if type(L) == "string" then
+		pcall(function()
+			(loadstring(L))();
+		end);
+	end;
+	if w then
+		_G.UI_RELOAD = nil;
+	end;
+	local function d(W)
+		if type(W) == "table" and (not W._dead and W.CreateWindow) then
+			hK = W;
+		end;
+	end;
+	if type(getfenv) == "function" then
+		pcall(function()
+			d(rawget(getfenv(0), "UILib"));
+		end);
+	end;
+	if not hK then
+		pcall(function()
+			d(_G.UILib);
+		end);
+	end;
+	if not hK and type(getgenv) == "function" then
+		pcall(function()
+			d((getgenv()).UILib);
+		end);
+	end;
+	if not hK then
+		pcall(function()
+			d(rawget(_G, "Sencha") or (getgenv and (getgenv()).Sencha));
+		end);
+	end;
+	if not hK then
+		notify("UI unavailable - AutoFish runs hotkey-only.", "AutoFish", 6);
+	end;
+end;
+local VK = { inset = 0 };
+local ZK = nil;
+local function tK()
+	local W = ZK;
+	if not W then
+		local L = G();
+		if not L then
+			return nil;
+		end;
+		local w, d = pcall(L.GetMouse, L);
+		if not w or not d then
+			return nil;
+		end;
+		ZK = d;
+		W = d;
+	end;
+	local L, w = W.X, W.Y;
+	if not ((L and w)) then
+		ZK = nil;
+		return nil;
+	end;
+	return L, w + VK.inset;
+end;
+local PK = {};
+local function nK(W)
+	local L = iskeypressed(W) and true or false;
+	local w = L and not PK[W];
+	PK[W] = L;
+	return w;
+end;
+local NK = nil;
+if hK then
+	do
+		local W = hK:CreateWindow({
+				id = "justautofish",
+				title = "Auto Fish",
+				x = 60,
+				y = 180,
+				size = { 300, 300 },
+				columns = 1,
+				toggleKey = F.End,
+				config = "fisch.json",
+				inputGuard = function()
+					return Om;
+				end,
+				captureInput = function()
+					return not DK;
+				end,
+				onUnload = function()
+					local W = _G.JustAutofish;
+					if W and type(W.stop) == "function" then
+						pcall(W.stop);
+					end;
+				end,
+			});
+		local L;
+		local w = (W:AddTab("Main")):AddGroup("Macro", 1);
+		L = w:AddToggle({ text = "Enabled", default = false, callback = function(L)
+					CK(L);
+					W:SetVisible(not L);
+				end });
+		local d = L:AddKeybind({ flag = "toggleVk", default = F.F1, notify = false });
+		w:AddDropdown({
+			text = "Mode",
+			flag = "mode",
+			values = y,
+			default = O.mode,
+			callback = function(W)
+				for L, w in ipairs(y) do
+					if w == W then
+						jK(L);
+						break;
+					end;
+				end;
+				L:Set(DK, true);
+			end,
+		});
+		w:AddSlider({
+			text = "Cast Power",
+			flag = "castPower",
+			min = 1,
+			max = 100,
+			step = 1,
+			suffix = "%",
+			default = O.castPower,
+			depends = function()
+				return O.mode == "rod";
+			end,
+			hideDisabled = true,
+			callback = function(W)
+				O.castPower = W;
+				Mm.castThreshold = hm();
+			end,
+		});
+		w:AddSlider({
+			text = "Click Delay",
+			flag = "gunDelayMs",
+			min = 0,
+			max = 1000,
+			step = 10,
+			suffix = "ms",
+			default = O.gunDelayMs,
+			depends = function()
+				return O.mode == "gun";
+			end,
+			hideDisabled = true,
+			callback = function(W)
+				O.gunDelayMs = W;
+			end,
+		});
+		W:AddSettingsTab("Settings");
+		W:LoadSettings();
+		NK = { win = W, toggle = L, bind = d };
+	end;
+end;
+local vK = nil;
+local YK = 0;
+local function sK(W)
+	if Mm.phase ~= vK then
+		vK = Mm.phase;
+		YK = W;
+		return;
+	end;
+	if (W - YK) < O.stuckTimeoutMs and (W - um) < O.stuckTimeoutMs then
+		return;
+	end;
+	YK = W;
+	um = W;
+	Ym();
+	mm();
+	z();
+	Om, ym = false, false;
+	pm, em = true, true;
+	pcall(mouse1release);
+	if Gm then
+		pcall(mouse2release);
+	end;
+	if type(setrobloxinput) == "function" then
+		pcall(setrobloxinput, true);
+	end;
+	km.done = true;
+	t.ignored = {};
+	qK();
+	vK = Mm.phase;
+end;
+local function SK(W)
+	if not cm() then
+		mm();
+		if Mm.reelStartedAt > 0 then
+			Mm.reelStartedAt = W;
+			Mm.reelMotionAt = W;
+		end;
+		YK, um = W, W;
+		return;
+	end;
+	sK(W);
+	if not Im(W) then
+		return;
+	end;
+	if ym and Mm.phase ~= "FISHING" then
+		lm();
+	end;
+	if Mm.phase == "OFF" then
+		qK();
+	end;
+	if Mm.phase ~= "NUKE" and (W - e.crossAt) >= e.cross then
+		e.crossAt = W;
+		if not S(W) and Tm(W) then
+			LK("ENTER from phase=" .. (tostring(Mm.phase) .. (" guiAddr=" .. tostring(am.guiAddr))));
+			Ym();
+			mm();
+			z();
+			dK:Begin(am.gui, W);
+			Mm.phase = "NUKE";
+		end;
+	end;
+	for L = 1, 4, 1 do
+		local w = Mm.phase;
+		local d = oK[w];
+		if not d then
+			break;
+		end;
+		d(W);
+		if Mm.phase == w then
+			break;
+		end;
+	end;
+end;
+local JK = { ImageButton = true, TextButton = true };
+local MK = { pull = true, darkpull = true };
+local fK = { buttonTemplates = true };
+local FK = {
+		stage = "SEEK",
+		actAt = 0,
+		calX = 0,
+		calY = 0,
+		fixes = 0,
+		wantAddr = nil,
+		pressedAt = 0,
+		aimX = 0,
+		aimY = 0,
+		lastAddr = nil,
+		lastAt = 0,
+		gui = nil,
+		guiAt = 0,
+		warnedNoMove = false,
+		warnedNoGui = false,
+	};
+local function RK(W)
+	if not W then
+		return nil;
+	end;
+	local L = x(W + r.AbsoluteSizeX);
+	local w = x(W + r.AbsoluteSizeY);
+	if not ((((L > 4 and w > 4)) and ((L < 8000 and w < 8000)))) then
+		return nil;
+	end;
+	local d = x(W + r.AbsolutePositionX);
+	local c = x(W + r.AbsolutePositionY);
+	if not ((l(d) and l(c))) then
+		return nil;
+	end;
+	return d, c, L, w;
+end;
+local function iK(W)
+	local L, w, d = nil, nil, math.huge;
+	local c, G = { W }, 1;
+	while G <= #c and G <= 64 do
+		local W = c[G];
+		G = G + 1;
+		for W, G in ipairs(j(W)) do
+			local O = G.Name;
+			if not fK[O] then
+				local W = B(G);
+				if W and D(G, W) then
+					if MK[O] and JK[G.ClassName] then
+						local c, G, O, y = RK(W);
+						if c and (O * y) < d then
+							L, d = W, O * y;
+							w = {
+									cx = c + (O * .5),
+									cy = G + (y * .5),
+									x = c,
+									y = G,
+									w = O,
+									h = y,
+								};
+						end;
+					end;
+					if #c < 64 then
+						c[#c + 1] = G;
+					end;
+				end;
+			end;
+		end;
+	end;
+	return L, w;
+end;
+local function XK(W)
+	if FK.gui and ((W - FK.guiAt) < e.gun and k(FK.gui)) then
+		return FK.gui;
+	end;
+	FK.guiAt = W;
+	local L = Z(W);
+	FK.gui = L and C(L, O.gunGuiName) or nil;
+	return FK.gui;
+end;
+local function aK(W)
+	FK.aimX, FK.aimY = W.cx, W.cy;
+	xm(W.cx + FK.calX, W.cy + FK.calY);
+end;
+local function zK(W)
+	FK.pressedAt = W;
+	rm();
+	FK.stage = "HOLD";
+	FK.actAt = W + O.gunHoldMs;
+end;
+local function AK(W)
+	if not cm() then
+		Km();
+		FK.stage = "SEEK";
+		return;
+	end;
+	if not qm then
+		if not FK.warnedNoMove then
+			FK.warnedNoMove = true;
+			notify("mousemoveabs() is missing - Gun mode cannot aim.", "AutoFish", 6);
+		end;
+		return;
+	end;
+	local L = XK(W);
+	if not L then
+		if not FK.warnedNoGui then
+			FK.warnedNoGui = true;
+		end;
+		Km();
+		FK.stage = "SEEK";
+		return;
+	end;
+	FK.warnedNoGui = false;
+	local w, d = iK(L);
+	if FK.stage == "HOLD" then
+		if d and w == FK.wantAddr then
+			aK(d);
+		end;
+		if W >= FK.actAt then
+			Km();
+			FK.lastAddr, FK.lastAt = FK.wantAddr, W;
+			FK.stage = "SEEK";
+		end;
+		return;
+	end;
+	if FK.stage == "AIM" then
+		if not w then
+			FK.stage = "SEEK";
+			return;
+		end;
+		FK.wantAddr = w;
+		if W >= FK.actAt then
+			local L, w = tK();
+			if not ((L and w)) then
+				zK(W);
+				return;
+			end;
+			if ((L >= d.x and L <= (d.x + d.w))) and ((w >= d.y and w <= (d.y + d.h))) then
+				zK(W);
+				return;
+			end;
+			if FK.fixes >= O.gunMaxFixes then
+				zK(W);
+				return;
+			end;
+			FK.calX = FK.calX + ((FK.aimX - L));
+			FK.calY = FK.calY + ((FK.aimY - w));
+			FK.fixes = FK.fixes + 1;
+		end;
+		aK(d);
+		return;
+	end;
+	if not w then
+		return;
+	end;
+	if w == FK.lastAddr and (W - FK.lastAt) < O.gunRearmMs then
+		return;
+	end;
+	if FK.pressedAt > 0 and (W - FK.pressedAt) < O.gunDelayMs then
+		return;
+	end;
+	FK.wantAddr = w;
+	FK.fixes = 0;
+	aK(d);
+	FK.stage = "AIM";
+	FK.actAt = W + O.gunSettleMs;
+end;
+local TK = { rod = SK, spear = lK, gun = AK };
+local function EK()
+	local W = tick() * 1000;
+	a(W);
+	if not DK then
+		return;
+	end;
+	if O.mode == "rod" and (Mm.phase == "FISHING" and (W - e.steerAt) >= e.steer) then
+		e.steerAt = W;
+		if not pcall(QK, W, true) then
+			mm();
+		end;
+	end;
+	if (W - e.stepAt) < e.step then
+		return;
+	end;
+	e.stepAt = W;
+	local L = TK[O.mode];
+	if not L then
+		return;
+	end;
+	if not pcall(L, W) then
+		mm();
+	end;
+end;
+local function Wa()
+	if not NK then
+		if Lm and nK(F.F1) then
+			CK(not DK);
+		end;
+		return;
+	end;
+	if NK.toggle.value ~= DK then
+		NK.toggle:Set(DK, true);
+	end;
+end;
+local La = {};
+do
+	local function W()
+		pcall(EK);
+	end;
+	local function L()
+		local L = DK or next(R) ~= nil;
+		if L and not La.render then
+			La.render = c.RenderStepped:Connect(W);
+		elseif not L and La.render then
+			local W = La.render;
+			La.render = nil;
+			pcall(function()
+				W:Disconnect();
+			end);
+		end;
+	end;
+	La.heartbeat = c.Heartbeat:Connect(function()
+			pcall(Wa);
+			pcall(L);
+		end);
+end;
+_G.JustAutofish.probe = function()
+		return Mm, Om;
+	end;
+_G.JustAutofish.stop = function()
+		for W, L in pairs(La) do
+			La[W] = nil;
+			pcall(function()
+				L:Disconnect();
+			end);
+		end;
+		pcall(z);
+		pcall(mouse1release);
+		if Gm then
+			pcall(mouse2release);
+		end;
+		local W = NK;
+		NK = nil;
+		if W then
+			pcall(function()
+				W.win:Destroy();
+			end);
+		end;
+	end;
+notify("AutoFish loaded. " .. ((((NK and NK.bind.value) or "F1")) .. " = start."), "AutoFish", 4);
